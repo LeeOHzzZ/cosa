@@ -4,22 +4,26 @@ import logging
 import os
 import pathlib
 import time
+from functools import reduce
+from operator import mul
+import json
 
 import numpy as np
 import cosa.run_config as run_config
-from cosa.cosa_constants import _A, _B
+from cosa.cosa_constants import _A, _B, _B_HLSCNN
 from cosa.cosa_input_objs import Prob, Arch, Mapspace
 from gurobipy import *
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)  # capture everything
-logger.disabled = True
+logger.disabled = False
 
 try:
     _COSA_DIR = os.path.expanduser(os.environ['COSA_DIR'])
 except KeyError:
     _COSA_DIR = os.path.abspath(__file__ + "/../")
 
+hlscnn = True
 
 def construct_argparser():
     parser = argparse.ArgumentParser(description='Run Configuration')
@@ -79,11 +83,13 @@ def cosa(prob, arch, A, B, part_ratios, global_buf_idx, Z=None):
     """
     # prime factors 
     prime_factors = prob.prob_factors
-    strides = [prob.prob['Wstride'], prob.prob['Hstride']]
+    strides = [prob.prob['Wstride'], prob.prob['Hstride'], prob.prob['Padding']]
+
+    new_B = _B if not hlscnn else _B_HLSCNN
 
     if Z is None:
         Z = []
-        for var in _B:
+        for var in new_B:
             Z_var = []
             for i, val in enumerate(var):
                 rank_arr = [0] * len(var)
@@ -94,7 +100,7 @@ def cosa(prob, arch, A, B, part_ratios, global_buf_idx, Z=None):
             Z.append(Z_var)
 
     factor_config, spatial_config, outer_perm_config, run_time = mip_solver(prime_factors, strides, arch, part_ratios,
-                                                                            global_buf_idx=4, A=_A, Z=Z,
+                                                                            global_buf_idx=global_buf_idx, A=_A, Z=Z,
                                                                             compute_factor=10, util_factor=-0.1,
                                                                             traffic_factor=1)
     return factor_config, spatial_config, outer_perm_config, run_time
@@ -104,12 +110,18 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
                traffic_factor=1):
     """CoSA mixed integer programming(MIP) formulation."""
 
+    logging.info(f"Prime factors {f}")
     logging.info(f"LAYER {f}")
+    logging.info(f"A {A}")
+    logging.info(f"Z {Z}")
 
     num_vars = len(A[0])
     num_mems = len(Z[0])
 
-    m = Model("mip")
+    env = Env(empty=True)
+    env.setParam("OutputFlag", 0)
+    env.start()
+    m = Model("mip", env=env)
     cost = []
     constraints = []
 
@@ -125,7 +137,7 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
             var_mem_cap = mem_cap * part_ratios[i][j]
             mem_cap_arr.append(var_mem_cap)
         M.append(mem_cap_arr)
-
+    logging.info(f"M: {M}")
     # log friendly M
     M_log = []
     for i, mem in enumerate(M):
@@ -136,9 +148,11 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
                 bound = 1
             M_v.append(bound)
         M_log.append(M_v)
-
+    logging.info(f"M_log: {M_log}")
     # spatial constraints
     S = arch.S
+
+    # =================================================================
 
     # set the levels to be equal to the number of factors + 4 memory levels 
     perm_levels = 0
@@ -147,8 +161,10 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
     gb_start_level = global_buf_idx
 
     total_levels = num_mems - 1 + perm_levels
+    logging.info(f"num_mems: {num_mems}; perm_levels: {perm_levels}")
     logging.info(f"total {total_levels} levels")
 
+    # ============== spatial and temporal exclusive constraints ==== #
     x = {}  # x_jn_jn
     for i in range(total_levels):
         for j, f_j in enumerate(f):
@@ -163,9 +179,10 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
                     name = "X({},{},{},{})".format(i, j, n, k)
                     spatial_temp_sum += x[(i, j, n, k)]
                 m.addConstr(spatial_temp_sum <= 1, "spatial_temp_sum_{}_{}_{}".format(i, j, n))
-
+    # logging.info(f"x: {x}")
     # j, n is the loop level 
-    # each mapper must have a mapping
+
+    # ============== each mapper must have a mapping ================= #
     i = 0
     x_row_sums = []
     x_col_sums = []
@@ -193,6 +210,8 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
 
             # make sure v is one for all outer loop level, once a correlation exists
     # add another relation var v - f, 3 - 7*n loop-level
+    # whether the type of variable has related loops at the certaion permutation level?
+    # temporal iteration term in the paper (the third term in calculating traffic)
     s = {}
     y = {}
     for v in range(num_vars):
@@ -211,23 +230,26 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
                 m.addConstr(y[(v, i)] == row_sum, "y_v_i_row_sum_{}_{}".format(v, i))
             s[(v, i)] = row_sum
 
+    # ========= No idea what this is about ============= #
     ## exhausively list all scenarios where p or q is inside current mem
-    zz = {}
-    prefix = 0
-    for var in [2, 3]:
-        for mem_level in [3]:
-            zz[(var, mem_level)] = m.addVar(lb=0, ub=1, vtype=GRB.INTEGER,
-                                            name="zz({},{},{})".format(prefix, var, mem_level))
-            x_sums = 0
-            for n, prime_factor in enumerate(f[var]):
-                for inner_mem_level_i in range(mem_level + 1):
-                    for k in range(2):
-                        filter_in = x[(inner_mem_level_i, var, n, k)]
-                        m.addConstr(zz[(var, mem_level)] >= filter_in,
-                                    "zz_x_sum_{}_{}_{}_{}_{}_{}".format(prefix, var, n, mem_level, inner_mem_level_i,
-                                                                        k))
-                        x_sums += filter_in
-            m.addConstr(zz[(var, mem_level)] <= x_sums, "z_x_sum_{}_{}_{}".format(prefix, var, mem_level))
+    if not hlscnn:
+        InputBufferLevel = 3
+        zz = {}
+        prefix = 0
+        for var in [2, 3]: # this var is referring the P and Q instead of input and output var
+            for mem_level in [InputBufferLevel]:
+                zz[(var, mem_level)] = m.addVar(lb=0, ub=1, vtype=GRB.INTEGER,
+                                                name="zz({},{},{})".format(prefix, var, mem_level))
+                x_sums = 0
+                for n, prime_factor in enumerate(f[var]):
+                    for inner_mem_level_i in range(mem_level + 1):
+                        for k in range(2):
+                            filter_in = x[(inner_mem_level_i, var, n, k)]
+                            m.addConstr(zz[(var, mem_level)] >= filter_in,
+                                        "zz_x_sum_{}_{}_{}_{}_{}_{}".format(prefix, var, n, mem_level, inner_mem_level_i,
+                                                                            k))
+                            x_sums += filter_in
+                m.addConstr(zz[(var, mem_level)] <= x_sums, "z_x_sum_{}_{}_{}".format(prefix, var, mem_level))
 
     l = {}
     for v in range(num_vars):
@@ -237,34 +259,37 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
                 for n, f_jn in enumerate(f_j):
                     row_sum += np.log2(f[j][n]) * (x[(i, j, n, 1)])
             l[(v, i)] = row_sum
-
-    # Add spatial constraints
-    spatial_tile = 0
-    for i in range(gb_start_level, gb_start_level + perm_levels):
-        for j, f_j in enumerate(f):
-            for n, f_jn in enumerate(f_j):
-                spatial_tile += np.log2(f[j][n]) * x[(i, j, n, 0)]
-    m.addConstr(spatial_tile <= np.log2(S[gb_start_level]), "spatial_tile_gb_{}".format(prefix))
-
-    for i in range(gb_start_level):
+    
+    if not hlscnn:
+        # Add spatial constraints
         spatial_tile = 0
-        for j, f_j in enumerate(f):
-            for n, f_jn in enumerate(f_j):
-                spatial_tile += np.log2(f[j][n]) * x[(i, j, n, 0)]
-        m.addConstr(spatial_tile <= np.log2(S[i]), f"spatial_tile_{prefix}_{i}")
+        for i in range(gb_start_level, gb_start_level + perm_levels):
+            for j, f_j in enumerate(f):
+                for n, f_jn in enumerate(f_j):
+                    spatial_tile += np.log2(f[j][n]) * x[(i, j, n, 0)]
+        m.addConstr(spatial_tile <= np.log2(S[gb_start_level]), "spatial_tile_gb_{}".format(prefix))
 
-    for i in range(gb_start_level + perm_levels, total_levels):
-        spatial_tile = 0
-        for j, f_j in enumerate(f):
-            for n, f_jn in enumerate(f_j):
-                spatial_tile += np.log2(f[j][n]) * x[(i, j, n, 0)]
-        m.addConstr(spatial_tile <= np.log2(S[i - perm_levels + 1]), f"spatial_tile_{i - perm_levels + 1}")
+        for i in range(gb_start_level):
+            spatial_tile = 0
+            for j, f_j in enumerate(f):
+                for n, f_jn in enumerate(f_j):
+                    spatial_tile += np.log2(f[j][n]) * x[(i, j, n, 0)]
+            m.addConstr(spatial_tile <= np.log2(S[i]), f"spatial_tile_{prefix}_{i}")
 
+        for i in range(gb_start_level + perm_levels, total_levels):
+            spatial_tile = 0
+            for j, f_j in enumerate(f):
+                for n, f_jn in enumerate(f_j):
+                    spatial_tile += np.log2(f[j][n]) * x[(i, j, n, 0)]
+            m.addConstr(spatial_tile <= np.log2(S[i - perm_levels + 1]), f"spatial_tile_{i - perm_levels + 1}")
+
+    # ========== memory sizes constraints ============== # 
     # Add inner gb buffer constraints
     buf_util = {}
     for v in range(num_vars):
         for i in range(num_mems):
             buf_util[(i, v)] = 0
+    logging.debug(f"buf_util: {buf_util}")
 
     for v in range(num_vars):
         for i_ in range(gb_start_level + perm_levels):
@@ -273,9 +298,9 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
                     for n, f_jn in enumerate(f_j):
                         factor = 1
                         if v == 1 and j == 2:
-                            factor = strides[0]
+                            factor = strides[0] + 0.05
                         if v == 1 and j == 3:
-                            factor = strides[1]
+                            factor = strides[1] + 0.05
 
                         if i_ > gb_start_level and i_ < gb_start_level + perm_levels:
                             Z_const = Z[v][i][gb_start_level]
@@ -295,7 +320,36 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
             if M_log[i][v] > 0:
                 m.addConstr(buf_util[(i, v)] <= np.log2(M_log[i][v]), f"buffer_size_{i}_{v}")
 
-                # get compute cost 
+
+    if hlscnn:
+        # disable spatial 
+        for i in range(total_levels):
+            for j, f_j in enumerate(f):
+                for n, f_jn in enumerate(f_j):
+                    m.addConstr(x[(i, j, n, 0)] == 0, f"disable_spatial_{i}_{j}_{n}")
+        # kernel row
+        k_row_sum = 0
+        k_col_sum = 0
+        in_chan_size = 0
+        out_chan_size = 0
+        for i in range(gb_start_level):
+            for n, f_jn in enumerate(f[0]):
+                k_row_sum += x[(i,0,n,1)]
+            for n, f_jn in enumerate(f[1]):
+                k_col_sum += x[(i,1,n,1)]
+            for n, f_jn in enumerate(f[4]):
+                in_chan_size += np.log2(f_jn) * x[(i,4,n,1)]
+            for n, f_jn in enumerate(f[5]):
+                out_chan_size += np.log2(f_jn) * x[(i,5,n,1)]
+            
+        m.addConstr(k_row_sum == len(f[0]), "hlscnn_k_row_in_spad")
+        m.addConstr(k_col_sum == len(f[1]), "hlscnn_k_col_in_spad")
+        m.addConstr(in_chan_size >= 3, "hlscnn_in_chan")
+        m.addConstr(in_chan_size <= 10, "hlscnn_max_in_chan")
+        m.addConstr(out_chan_size >= 3, "hlscnn_out_chan")
+        m.addConstr(out_chan_size <= 8, "hlscnn_max_out_chan")
+
+    # get compute cost 
     inner_gb_cycles = 0
     for i in range(gb_start_level):
         for j, f_j in enumerate(f):
@@ -333,7 +387,7 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
             for j, f_j in enumerate(f):
                 for n, f_jn in enumerate(f_j):
                     # TRICK prioritize spatial
-                    factors = 0.8 + 0.04 * i
+                    factors = 0.8 + 0.04 * i if not hlscnn else 1
                     size += factors * np.log2(f[j][n]) * (x[(i, j, n, 0)] + x[i, j, n, 1]) * A[j][v]
         data_size[v] = size
 
@@ -371,12 +425,15 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
             factor = 1.01
         else:
             factor = 1
-
+        
+        # if hlscnn:
+        #     total_traffic += data_size[v] + gb_traffic[v] + dram_traffic[v] * factor
+        # else:
         total_traffic += 0.99 * data_size[v] + 0.99 * spatial_cost[v] + gb_traffic[v] + dram_traffic[v] * factor
 
     # ========================== user-defined objective function ========================== #
-    cosa_obj = total_util * util_factor + total_compute * compute_factor + total_traffic * traffic_factor
-
+    # cosa_obj = total_util * util_factor + total_compute * compute_factor + total_traffic * traffic_factor
+    cosa_obj = total_traffic
     max_it = m.addVar(vtype=GRB.CONTINUOUS, name="max_it")
     its = []
     its.append(m.addVar(vtype=GRB.CONTINUOUS, name="a"))
@@ -411,6 +468,7 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
     for variable in m.getVars():
         # logging.debug("Variable %s: Value %s" % (variable.varName, variable.x))
         assert (variable.varName not in result_dict)
+        # print(variable, variable.varName, variable.x)
         result_dict[variable.varName] = variable.x
     logging.debug('Obj: %g' % m.objVal)
 
@@ -419,6 +477,8 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
         level_idx = 0
         for j, f_j in enumerate(f):
             for n, f_jn in enumerate(f_j):
+                if hlscnn:
+                    assert result_dict[f"X({i},{j},{n},0)"] == 0
                 for k in range(2):
                     name = "X({},{},{},{})".format(i, j, n, k)
                     val = result_dict[name]
@@ -530,6 +590,7 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
     logging.info(f"prime factors: {f}")
     logging.info(f"factor configs: {factor_config}")
     logging.info(f"spatial configs: {spatial_config}")
+    logging.info(f"milp runtime: {milp_runtime}")
 
     return (factor_config, spatial_config, outer_perm_config, milp_runtime)
 
@@ -545,7 +606,7 @@ def run_timeloop(prob_path, arch_path, mapspace_path, output_path):
     mapspace.init(prob, arch)
 
     # even mapping
-    B = _B
+    B = _B if not hlscnn else _B_HLSCNN
     Z = None
 
     # uneven mapping config
@@ -561,7 +622,17 @@ def run_timeloop(prob_path, arch_path, mapspace_path, output_path):
         [0, 0.25, 0.75],
         [0.33, 0.33, 0.33],
     ]
-    factor_config, spatial_config, outer_perm_config, run_time = cosa(prob, arch, _A, B, part_ratios, global_buf_idx=4,
+
+    if hlscnn:
+        part_ratios = [
+            [0.5, 0.25, 0.25],
+            [0.33, 0.33, 0.33],
+            [0.33, 0.33, 0.33],
+        ]
+
+    global_buf_idx = 4 if not hlscnn else 1
+
+    factor_config, spatial_config, outer_perm_config, run_time = cosa(prob, arch, _A, B, part_ratios, global_buf_idx=global_buf_idx,
                                                                       Z=Z)
 
     update_factor_config = factor_config
@@ -582,19 +653,56 @@ def run_timeloop(prob_path, arch_path, mapspace_path, output_path):
 
     logging.info(f'update_factor_config: {update_factor_config}')
     perm_config = mapspace.get_default_perm()
-    perm_config[4] = outer_perm_config
+    logging.info(f"default perm_config: {perm_config}")
+    logging.info(f"outer_per_config: {outer_perm_config}")
 
-    status_dict = {}
-    try:
-        spatial_configs = []
-        results = run_config.run_config(mapspace, None, perm_config, update_factor_config, status_dict,
-                                        run_gen_map=True, run_gen_tc=False, run_sim_test=False, output_path=output_path,
-                                        spatial_configs=spatial_configs, valid_check=False, outer_loopcount_limit=100)
-        logging.info(f'status_dict: {status_dict}')
-    except:
-        logging.error('Error: invalid schedule.')
+    if hlscnn:
+        assert all([True if i == 0 else False for i in update_factor_config[0]]), (
+            "Result has tiling on kernel width dimension which is not allowed for HLSCNN"
+        )
+        assert all([True if i == 0 else False for i in update_factor_config[1]]), (
+            "Result has tiling on kernel height dimension which is not allowed for HLSCNN"
+        )
+        assert all([2 not in i for i in update_factor_config[:-1]]) # the pseudo-DRAM should not be used
+        fn = lambda f, level: f if level == 0 else 1
+        tile_size_dict = {
+            "tw" : reduce(mul, map(fn, prob.prob_factors[2], update_factor_config[2])),
+            "th" : reduce(mul, map(fn, prob.prob_factors[3], update_factor_config[3])),
+            "tc" : reduce(mul, map(fn, prob.prob_factors[4], update_factor_config[4])),
+            "tk" : reduce(mul, map(fn, prob.prob_factors[5], update_factor_config[5])),
+        }
+        logging.info(f"tile size dict: {tile_size_dict}")
+        dim_order_dict = {"w": outer_perm_config[2], "h": outer_perm_config[3], "c": outer_perm_config[4], "k": outer_perm_config[5]}
+        loopOrder = [k for k, _ in sorted(dim_order_dict.items(), key = lambda x : x[1])]
+        logging.info(f"LoopOrder: {loopOrder}")
 
-    return status_dict
+        results = {
+            "tile_sizes" : tile_size_dict,
+            "loopOrder" : loopOrder,
+            "timeToSolution": run_time,
+        }
+
+        with open(output_path, "w") as fout:
+            json.dump(results, fout, indent=4)
+        
+        logging.info(f"result has been dumped to {output_path}")
+        
+
+
+    if not hlscnn:
+        perm_config[4] = outer_perm_config
+
+        status_dict = {}
+        try:
+            spatial_configs = []
+            results = run_config.run_config(mapspace, None, perm_config, update_factor_config, status_dict,
+                                            run_gen_map=True, run_gen_tc=False, run_sim_test=False, output_path=output_path,
+                                            spatial_configs=spatial_configs, valid_check=False, outer_loopcount_limit=100)
+            logging.info(f'status_dict: {status_dict}')
+        except:
+            logging.error('Error: invalid schedule.')
+
+        return status_dict
 
 def run_cosa():
     parser = construct_argparser()

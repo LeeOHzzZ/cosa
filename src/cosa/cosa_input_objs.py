@@ -69,7 +69,7 @@ class Prob(object):
         self.prob = prob_dict['problem']
 
         for key, value in self.prob.items():
-            if ('stride' in key or 'dilation' in key):
+            if ('stride' in key or 'dilation' in key or 'Padding' in key):
                 continue
             if (key == 'shape'):
                 continue

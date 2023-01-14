@@ -1,0 +1,16 @@
+mapspace:
+  constraints:
+  - target: SPAD
+    type: datatype
+    keep:
+    - Weights
+    - Inputs
+    - Outputs
+    bypass:
+  - target: GlobalBuffer(Real DRAM)
+    type: datatype
+    keep:
+    - Weights
+    - Inputs
+    - Outputs
+    bypass:

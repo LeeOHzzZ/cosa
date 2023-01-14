@@ -20,6 +20,12 @@ _B = [
     [0, 1, 0, 0, 1, 1],  # Outputs
 ]
 
+_B_HLSCNN = [
+    [1, 1, 1],  # Weights
+    [1, 1, 1],  # Inputs
+    [1, 1, 1],  # Outputs
+]
+
 # for uneven mapping
 # v=3, i=6, i'=6
 _Z = [
