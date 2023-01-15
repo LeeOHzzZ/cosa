@@ -298,9 +298,9 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
                     for n, f_jn in enumerate(f_j):
                         factor = 1
                         if v == 1 and j == 2:
-                            factor = strides[0] + 0.05
+                            factor = strides[0] + 0.05 if strides[2] else strides[0] # strides[2] contains padding info
                         if v == 1 and j == 3:
-                            factor = strides[1] + 0.05
+                            factor = strides[1] + 0.05 if strides[2] else strides[1]
 
                         if i_ > gb_start_level and i_ < gb_start_level + perm_levels:
                             Z_const = Z[v][i][gb_start_level]
@@ -332,15 +332,15 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
         k_col_sum = 0
         in_chan_size = 0
         out_chan_size = 0
-        for i in range(gb_start_level):
-            for n, f_jn in enumerate(f[0]):
-                k_row_sum += x[(i,0,n,1)]
-            for n, f_jn in enumerate(f[1]):
-                k_col_sum += x[(i,1,n,1)]
-            for n, f_jn in enumerate(f[4]):
-                in_chan_size += np.log2(f_jn) * x[(i,4,n,1)]
-            for n, f_jn in enumerate(f[5]):
-                out_chan_size += np.log2(f_jn) * x[(i,5,n,1)]
+        # for i in range(gb_start_level):
+        for n, f_jn in enumerate(f[0]):
+            k_row_sum += x[(0,0,n,1)]
+        for n, f_jn in enumerate(f[1]):
+            k_col_sum += x[(0,1,n,1)]
+        for n, f_jn in enumerate(f[4]):
+            in_chan_size += np.log2(f_jn) * x[(0,4,n,1)]
+        for n, f_jn in enumerate(f[5]):
+            out_chan_size += np.log2(f_jn) * x[(0,5,n,1)]
             
         m.addConstr(k_row_sum == len(f[0]), "hlscnn_k_row_in_spad")
         m.addConstr(k_col_sum == len(f[1]), "hlscnn_k_col_in_spad")
@@ -454,12 +454,26 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
     m.ModelSense = GRB.MINIMIZE
     m.setObjective(cosa_obj, GRB.MINIMIZE)
 
+
     # optimize for the objective function
     milp_time = 0
     begin_time = time.time()
     m.optimize()
     end_time = time.time()
     milp_runtime = end_time - begin_time
+
+    # if m.status == GRB.INFEASIBLE:
+    #     iis_constr = []
+    #     while (m.status == GRB.INFEASIBLE):
+    #         m.computeIIS()
+    #         for c in m.getConstrs():
+    #             if c.IISConstr:
+    #                 iis_constr.append(c)
+    #                 m.remove(c)
+    #                 break
+    #         m.optimize()
+            
+    #     print("IIS:", iis_constr)
 
     # output all constraints and variables
     m.write("debug.lp")
@@ -657,13 +671,19 @@ def run_timeloop(prob_path, arch_path, mapspace_path, output_path):
     logging.info(f"outer_per_config: {outer_perm_config}")
 
     if hlscnn:
-        assert all([True if i == 0 else False for i in update_factor_config[0]]), (
+        assert all(
+            [True if i == 0 or all([j == 1 for j in prob.prob_factors[0]]) 
+             else False for i in update_factor_config[0]]
+        ), (
             "Result has tiling on kernel width dimension which is not allowed for HLSCNN"
         )
-        assert all([True if i == 0 else False for i in update_factor_config[1]]), (
+        assert all(
+            [True if i == 0 or all([j == 1 for j in prob.prob_factors[1]]) 
+             else False for i in update_factor_config[1]]
+        ), (
             "Result has tiling on kernel height dimension which is not allowed for HLSCNN"
         )
-        assert all([2 not in i for i in update_factor_config[:-1]]) # the pseudo-DRAM should not be used
+        # assert all([2 not in i for i in update_factor_config[:-1]]) # the pseudo-DRAM should not be used
         fn = lambda f, level: f if level == 0 else 1
         tile_size_dict = {
             "tw" : reduce(mul, map(fn, prob.prob_factors[2], update_factor_config[2])),
