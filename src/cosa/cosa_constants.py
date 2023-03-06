@@ -12,6 +12,21 @@ _A = [
     [0, 1, 1],  # N
 ]
 
+# A special treatment to adapt conv2d problem to linear layer
+# set the C to be the input(reduction) dimension of Matrix Multiplication
+# set the P to be the batch dimension
+# set the Q to be the output dimension
+# all other dimensions are unrelated
+_A_FLEXASR = [
+    [0, 0, 0], # R
+    [0, 0, 0], # S
+    [0, 1, 1], # P (batch dimension is related to both inputs and outputs)
+    [1, 0, 1], # Q (output dimension is related to both weights and outputs)
+    [1, 1, 0], # C (input dimension is related tp both weights and inputs)
+    [0, 0, 0], # K
+    [0, 0, 0], # N
+]
+
 # assume 6 levels of ranks
 # v=3, i=6 var - rank
 _B = [
@@ -24,6 +39,12 @@ _B_HLSCNN = [
     [1, 1, 1],  # Weights
     [1, 1, 1],  # Inputs
     [1, 1, 1],  # Outputs
+]
+
+_B_FLEXASR = [
+    [1, 0, 1, 1], # Weights
+    [0, 1, 1, 1], # Inputs
+    [0, 1, 1, 1], # Outputs
 ]
 
 # for uneven mapping

@@ -7,10 +7,11 @@ import time
 from functools import reduce
 from operator import mul
 import json
+import math
 
 import numpy as np
 import cosa.run_config as run_config
-from cosa.cosa_constants import _A, _B, _B_HLSCNN
+from cosa.cosa_constants import _A, _A_FLEXASR, _B, _B_HLSCNN, _B_FLEXASR
 from cosa.cosa_input_objs import Prob, Arch, Mapspace
 from gurobipy import *
 
@@ -24,6 +25,9 @@ except KeyError:
     _COSA_DIR = os.path.abspath(__file__ + "/../")
 
 hlscnn = True
+flexasr = False
+is_3la = hlscnn or flexasr
+assert not(hlscnn and flexasr), "cannot set both hlscnn and flexasr to be True"
 
 def construct_argparser():
     parser = argparse.ArgumentParser(description='Run Configuration')
@@ -83,9 +87,31 @@ def cosa(prob, arch, A, B, part_ratios, global_buf_idx, Z=None):
     """
     # prime factors 
     prime_factors = prob.prob_factors
-    strides = [prob.prob['Wstride'], prob.prob['Hstride'], prob.prob['Padding']]
+    # TODO: determine factor based on the padding and kernel value
+    # larger_in_w = 1 if prob.prob["Padding"] > 0 or prob.prob["R"] > 1 else 0
+    # larger_in_h = 1 if prob.prob["Padding"] > 0 or prob.prob["S"] > 1 else 0
+    factor_in_w = prob.prob["Wstride"] * ((prob.prob["P"] - 1) * prob.prob["Wstride"] + prob.prob["R"] + 2 * prob.prob["Padding"]) / (prob.prob["P"] * prob.prob["Wstride"])
+    factor_in_h = prob.prob["Hstride"] * ((prob.prob["Q"] - 1) * prob.prob["Hstride"] + prob.prob["S"] + 2 * prob.prob["Padding"]) / (prob.prob["Q"] * prob.prob["Hstride"])
+    print(factor_in_w, factor_in_w)
+    if factor_in_w > prob.prob["Wstride"]:
+        factor_in_w *= 1.1
+    if factor_in_h > prob.prob["Hstride"]:
+        factor_in_h *= 1.1
+    print(factor_in_w, factor_in_w)
+    
+    # strides = [prob.prob['Wstride'], prob.prob['Hstride'], prob.prob['Padding']]
+    strides = [prob.prob['Wstride'], prob.prob['Hstride'], factor_in_w, factor_in_h]
 
-    new_B = _B if not hlscnn else _B_HLSCNN
+    new_A = _A
+    if flexasr:
+        new_A = _A_FLEXASR
+
+    new_B = _B 
+    if hlscnn:
+        new_B = _B_HLSCNN
+    elif flexasr:
+        new_B = _B_FLEXASR
+
 
     if Z is None:
         Z = []
@@ -100,7 +126,7 @@ def cosa(prob, arch, A, B, part_ratios, global_buf_idx, Z=None):
             Z.append(Z_var)
 
     factor_config, spatial_config, outer_perm_config, run_time = mip_solver(prime_factors, strides, arch, part_ratios,
-                                                                            global_buf_idx=global_buf_idx, A=_A, Z=Z,
+                                                                            global_buf_idx=global_buf_idx, A=new_A, Z=Z,
                                                                             compute_factor=10, util_factor=-0.1,
                                                                             traffic_factor=1)
     return factor_config, spatial_config, outer_perm_config, run_time
@@ -232,7 +258,7 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
 
     # ========= No idea what this is about ============= #
     ## exhausively list all scenarios where p or q is inside current mem
-    if not hlscnn:
+    if not is_3la:
         InputBufferLevel = 3
         zz = {}
         prefix = 0
@@ -260,7 +286,7 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
                     row_sum += np.log2(f[j][n]) * (x[(i, j, n, 1)])
             l[(v, i)] = row_sum
     
-    if not hlscnn:
+    if not is_3la:
         # Add spatial constraints
         spatial_tile = 0
         for i in range(gb_start_level, gb_start_level + perm_levels):
@@ -297,10 +323,13 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
                 for j, f_j in enumerate(f):
                     for n, f_jn in enumerate(f_j):
                         factor = 1
+                        # stride[2, 3] contains larger input_w, input_h info
+                        # If there is no padding, the input image size is probably larger than the output size
                         if v == 1 and j == 2:
-                            factor = strides[0] + 0.05 if strides[2] else strides[0] # strides[2] contains padding info
+                            # factor = strides[0] + 0.1 if strides[2] else strides[0]
+                            factor = strides[2]
                         if v == 1 and j == 3:
-                            factor = strides[1] + 0.05 if strides[2] else strides[1]
+                            factor = strides[3]
 
                         if i_ > gb_start_level and i_ < gb_start_level + perm_levels:
                             Z_const = Z[v][i][gb_start_level]
@@ -309,10 +338,11 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
                         buf_util[(i, v)] += np.log2(factor * f[j][n]) * (x[(i_, j, n, 0)] + x[i_, j, n, 1]) * A[j][
                             v] * Z_const  # use the i for the cur mem for relationship 
                         # only add once
-                        if i == 3 and j in [0, 1] and v == 1:
-                            buf_util[(i, v)] += (x[(i_, j, n, 0)] + x[(i_, j, n, 1)]) * (1 - zz[(j + 2, i)]) * np.log2(
-                                f[j][n])
-                            buf_util[(i, v)] += (x[(i_, j, n, 0)] + x[(i_, j, n, 1)]) * zz[(j + 2, i)] * np.log2(2)
+                        if not is_3la:
+                            if i == 3 and j in [0, 1] and v == 1:
+                                buf_util[(i, v)] += (x[(i_, j, n, 0)] + x[(i_, j, n, 1)]) * (1 - zz[(j + 2, i)]) * np.log2(
+                                    f[j][n])
+                                buf_util[(i, v)] += (x[(i_, j, n, 0)] + x[(i_, j, n, 1)]) * zz[(j + 2, i)] * np.log2(2)
 
     for v in range(num_vars):
         # excluding DRAM
@@ -344,10 +374,17 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
             
         m.addConstr(k_row_sum == len(f[0]), "hlscnn_k_row_in_spad")
         m.addConstr(k_col_sum == len(f[1]), "hlscnn_k_col_in_spad")
-        m.addConstr(in_chan_size >= 3, "hlscnn_in_chan")
+        # m.addConstr(in_chan_size >= 3, "hlscnn_in_chan")
         m.addConstr(in_chan_size <= 10, "hlscnn_max_in_chan")
-        m.addConstr(out_chan_size >= 3, "hlscnn_out_chan")
+        # m.addConstr(out_chan_size >= 3, "hlscnn_out_chan")
         m.addConstr(out_chan_size <= 8, "hlscnn_max_out_chan")
+
+    if flexasr:
+        # disable spatial 
+        for i in range(total_levels):
+            for j, f_j in enumerate(f):
+                for n, f_jn in enumerate(f_j):
+                    m.addConstr(x[(i, j, n, 0)] == 0, f"disable_spatial_{i}_{j}_{n}")
 
     # get compute cost 
     inner_gb_cycles = 0
@@ -387,7 +424,7 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
             for j, f_j in enumerate(f):
                 for n, f_jn in enumerate(f_j):
                     # TRICK prioritize spatial
-                    factors = 0.8 + 0.04 * i if not hlscnn else 1
+                    factors = 0.8 + 0.04 * i if not is_3la else 1
                     size += factors * np.log2(f[j][n]) * (x[(i, j, n, 0)] + x[i, j, n, 1]) * A[j][v]
         data_size[v] = size
 
@@ -643,8 +680,19 @@ def run_timeloop(prob_path, arch_path, mapspace_path, output_path):
             [0.33, 0.33, 0.33],
             [0.33, 0.33, 0.33],
         ]
+    if flexasr:
+        part_ratios = [
+            [1, 0, 0],
+            [0, 0.5, 0.5],
+            [0.33, 0.33, 0.33],
+            [0.33, 0.33, 0.33],
+        ]
 
-    global_buf_idx = 4 if not hlscnn else 1
+    global_buf_idx = 4
+    if hlscnn:
+        global_buf_idx = 1
+    elif flexasr:
+        global_buf_idx = 2
 
     factor_config, spatial_config, outer_perm_config, run_time = cosa(prob, arch, _A, B, part_ratios, global_buf_idx=global_buf_idx,
                                                                       Z=Z)
@@ -709,7 +757,7 @@ def run_timeloop(prob_path, arch_path, mapspace_path, output_path):
         
 
 
-    if not hlscnn:
+    if not is_3la:
         perm_config[4] = outer_perm_config
 
         status_dict = {}
