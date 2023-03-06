@@ -1,0 +1,197 @@
+[
+    {
+        "tile_sizes": {
+            "tw": 28,
+            "th": 16,
+            "tc": 8,
+            "tk": 64
+        },
+        "loopOrder": [
+            "k",
+            "c",
+            "w",
+            "h"
+        ],
+        "timeToSolution": 3.7359259128570557
+    },
+    {
+        "tile_sizes": {
+            "tw": 4,
+            "th": 14,
+            "tc": 64,
+            "tk": 64
+        },
+        "loopOrder": [
+            "c",
+            "k",
+            "h",
+            "w"
+        ],
+        "timeToSolution": 8.891426801681519
+    },
+    {
+        "tile_sizes": {
+            "tw": 4,
+            "th": 56,
+            "tc": 16,
+            "tk": 128
+        },
+        "loopOrder": [
+            "k",
+            "h",
+            "c",
+            "w"
+        ],
+        "timeToSolution": 6.40897798538208
+    },
+    {
+        "tile_sizes": {
+            "tw": 8,
+            "th": 14,
+            "tc": 32,
+            "tk": 128
+        },
+        "loopOrder": [
+            "k",
+            "h",
+            "c",
+            "w"
+        ],
+        "timeToSolution": 5.056305885314941
+    },
+    {
+        "tile_sizes": {
+            "tw": 14,
+            "th": 8,
+            "tc": 16,
+            "tk": 256
+        },
+        "loopOrder": [
+            "k",
+            "c",
+            "h",
+            "w"
+        ],
+        "timeToSolution": 8.223239183425903
+    },
+    {
+        "tile_sizes": {
+            "tw": 28,
+            "th": 4,
+            "tc": 16,
+            "tk": 256
+        },
+        "loopOrder": [
+            "k",
+            "c",
+            "h",
+            "w"
+        ],
+        "timeToSolution": 4.9349939823150635
+    },
+    {
+        "tile_sizes": {
+            "tw": 28,
+            "th": 4,
+            "tc": 16,
+            "tk": 256
+        },
+        "loopOrder": [
+            "k",
+            "c",
+            "h",
+            "w"
+        ],
+        "timeToSolution": 5.543799638748169
+    },
+    {
+        "tile_sizes": {
+            "tw": 4,
+            "th": 28,
+            "tc": 16,
+            "tk": 256
+        },
+        "loopOrder": [
+            "k",
+            "w",
+            "c",
+            "h"
+        ],
+        "timeToSolution": 3.598423957824707
+    },
+    {
+        "tile_sizes": {
+            "tw": 7,
+            "th": 1,
+            "tc": 512,
+            "tk": 8
+        },
+        "loopOrder": [
+            "c",
+            "w",
+            "k",
+            "h"
+        ],
+        "timeToSolution": 5.140789031982422
+    },
+    {
+        "tile_sizes": {
+            "tw": 7,
+            "th": 1,
+            "tc": 512,
+            "tk": 8
+        },
+        "loopOrder": [
+            "c",
+            "w",
+            "k",
+            "h"
+        ],
+        "timeToSolution": 5.111298084259033
+    },
+    {
+        "tile_sizes": {
+            "tw": 1,
+            "th": 7,
+            "tc": 512,
+            "tk": 8
+        },
+        "loopOrder": [
+            "c",
+            "k",
+            "h",
+            "w"
+        ],
+        "timeToSolution": 3.665555953979492
+    },
+    {
+        "tile_sizes": {
+            "tw": 1,
+            "th": 7,
+            "tc": 512,
+            "tk": 8
+        },
+        "loopOrder": [
+            "c",
+            "k",
+            "h",
+            "w"
+        ],
+        "timeToSolution": 3.6528260707855225
+    },
+    {
+        "tile_sizes": {
+            "tw": 1,
+            "th": 7,
+            "tc": 512,
+            "tk": 8
+        },
+        "loopOrder": [
+            "c",
+            "k",
+            "h",
+            "w"
+        ],
+        "timeToSolution": 3.671996831893921
+    }
+]

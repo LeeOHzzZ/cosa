@@ -1,0 +1,14 @@
+problem:
+  C: 1024
+  Hdilation: 1
+  Hstride: 2
+  K: 2048
+  N: 1
+  P: 25
+  Padding: 0
+  Q: 25
+  R: 1
+  S: 1
+  Wdilation: 1
+  Wstride: 2
+  shape: cnn-layer

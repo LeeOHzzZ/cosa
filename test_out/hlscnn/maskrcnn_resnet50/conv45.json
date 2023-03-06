@@ -1,0 +1,15 @@
+{
+    "tile_sizes": {
+        "tw": 5,
+        "th": 25,
+        "tc": 256,
+        "tk": 256
+    },
+    "loopOrder": [
+        "k",
+        "w",
+        "c",
+        "h"
+    ],
+    "timeToSolution": 4.917425870895386
+}

@@ -1,0 +1,512 @@
+[
+  {
+    "tile_sizes": {
+      "tw": 10,
+      "th": 50,
+      "tc": 3,
+      "tk": 64
+    },
+    "loopOrder": [
+      "w",
+      "h",
+      "c",
+      "k"
+    ],
+    "timeToSolution": 0.051689863204956055
+  },
+  {
+    "tile_sizes": {
+      "tw": 10,
+      "th": 25,
+      "tc": 64,
+      "tk": 64
+    },
+    "loopOrder": [
+      "w",
+      "h",
+      "c",
+      "k"
+    ],
+    "timeToSolution": 0.06209111213684082
+  },
+  {
+    "tile_sizes": {
+      "tw": 25,
+      "th": 10,
+      "tc": 32,
+      "tk": 128
+    },
+    "loopOrder": [
+      "w",
+      "h",
+      "c",
+      "k"
+    ],
+    "timeToSolution": 0.7031738758087158
+  },
+  {
+    "tile_sizes": {
+      "tw": 25,
+      "th": 10,
+      "tc": 64,
+      "tk": 64
+    },
+    "loopOrder": [
+      "h",
+      "w",
+      "c",
+      "k"
+    ],
+    "timeToSolution": 2.9007728099823
+  },
+  {
+    "tile_sizes": {
+      "tw": 15,
+      "th": 15,
+      "tc": 64,
+      "tk": 64
+    },
+    "loopOrder": [
+      "h",
+      "k",
+      "w",
+      "c"
+    ],
+    "timeToSolution": 3.1922037601470947
+  },
+  {
+    "tile_sizes": {
+      "tw": 15,
+      "th": 15,
+      "tc": 32,
+      "tk": 128
+    },
+    "loopOrder": [
+      "h",
+      "c",
+      "k",
+      "w"
+    ],
+    "timeToSolution": 3.4370839595794678
+  },
+  {
+    "tile_sizes": {
+      "tw": 15,
+      "th": 15,
+      "tc": 32,
+      "tk": 128
+    },
+    "loopOrder": [
+      "h",
+      "c",
+      "k",
+      "w"
+    ],
+    "timeToSolution": 3.434678077697754
+  },
+  {
+    "tile_sizes": {
+      "tw": 19,
+      "th": 19,
+      "tc": 32,
+      "tk": 64
+    },
+    "loopOrder": [
+      "c",
+      "w",
+      "h",
+      "k"
+    ],
+    "timeToSolution": 2.2101082801818848
+  },
+  {
+    "tile_sizes": {
+      "tw": 19,
+      "th": 19,
+      "tc": 32,
+      "tk": 64
+    },
+    "loopOrder": [
+      "c",
+      "k",
+      "h",
+      "w"
+    ],
+    "timeToSolution": 1.4762122631072998
+  },
+  {
+    "tile_sizes": {
+      "tw": 19,
+      "th": 19,
+      "tc": 32,
+      "tk": 64
+    },
+    "loopOrder": [
+      "c",
+      "k",
+      "h",
+      "w"
+    ],
+    "timeToSolution": 1.477510929107666
+  },
+  {
+    "tile_sizes": {
+      "tw": 19,
+      "th": 19,
+      "tc": 32,
+      "tk": 64
+    },
+    "loopOrder": [
+      "c",
+      "k",
+      "w",
+      "h"
+    ],
+    "timeToSolution": 1.0767438411712646
+  },
+  {
+    "tile_sizes": {
+      "tw": 19,
+      "th": 19,
+      "tc": 32,
+      "tk": 64
+    },
+    "loopOrder": [
+      "c",
+      "k",
+      "w",
+      "h"
+    ],
+    "timeToSolution": 1.0903370380401611
+  },
+  {
+    "tile_sizes": {
+      "tw": 19,
+      "th": 19,
+      "tc": 32,
+      "tk": 64
+    },
+    "loopOrder": [
+      "c",
+      "k",
+      "w",
+      "h"
+    ],
+    "timeToSolution": 1.0882461071014404
+  },
+  {
+    "tile_sizes": {
+      "tw": 19,
+      "th": 19,
+      "tc": 64,
+      "tk": 64
+    },
+    "loopOrder": [
+      "k",
+      "c",
+      "w",
+      "h"
+    ],
+    "timeToSolution": 2.013340950012207
+  },
+  {
+    "tile_sizes": {
+      "tw": 19,
+      "th": 19,
+      "tc": 64,
+      "tk": 64
+    },
+    "loopOrder": [
+      "c",
+      "k",
+      "w",
+      "h"
+    ],
+    "timeToSolution": 0.7908921241760254
+  },
+  {
+    "tile_sizes": {
+      "tw": 10,
+      "th": 10,
+      "tc": 4,
+      "tk": 256
+    },
+    "loopOrder": [
+      "c",
+      "k",
+      "w",
+      "h"
+    ],
+    "timeToSolution": 0.598412036895752
+  },
+  {
+    "tile_sizes": {
+      "tw": 10,
+      "th": 10,
+      "tc": 256,
+      "tk": 128
+    },
+    "loopOrder": [
+      "c",
+      "w",
+      "h",
+      "k"
+    ],
+    "timeToSolution": 0.044014930725097656
+  },
+  {
+    "tile_sizes": {
+      "tw": 5,
+      "th": 5,
+      "tc": 128,
+      "tk": 32
+    },
+    "loopOrder": [
+      "k",
+      "w",
+      "h",
+      "c"
+    ],
+    "timeToSolution": 0.028338909149169922
+  },
+  {
+    "tile_sizes": {
+      "tw": 5,
+      "th": 5,
+      "tc": 256,
+      "tk": 128
+    },
+    "loopOrder": [
+      "w",
+      "h",
+      "c",
+      "k"
+    ],
+    "timeToSolution": 0.025147199630737305
+  },
+  {
+    "tile_sizes": {
+      "tw": 3,
+      "th": 3,
+      "tc": 128,
+      "tk": 32
+    },
+    "loopOrder": [
+      "k",
+      "w",
+      "h",
+      "c"
+    ],
+    "timeToSolution": 0.03034496307373047
+  },
+  {
+    "tile_sizes": {
+      "tw": 3,
+      "th": 3,
+      "tc": 256,
+      "tk": 128
+    },
+    "loopOrder": [
+      "w",
+      "h",
+      "c",
+      "k"
+    ],
+    "timeToSolution": 0.031375885009765625
+  },
+  {
+    "tile_sizes": {
+      "tw": 1,
+      "th": 1,
+      "tc": 128,
+      "tk": 32
+    },
+    "loopOrder": [
+      "k",
+      "w",
+      "h",
+      "c"
+    ],
+    "timeToSolution": 0.022870779037475586
+  },
+  {
+    "tile_sizes": {
+      "tw": 38,
+      "th": 38,
+      "tc": 8,
+      "tk": 16
+    },
+    "loopOrder": [
+      "c",
+      "w",
+      "h",
+      "k"
+    ],
+    "timeToSolution": 0.06925415992736816
+  },
+  {
+    "tile_sizes": {
+      "tw": 19,
+      "th": 19,
+      "tc": 32,
+      "tk": 24
+    },
+    "loopOrder": [
+      "c",
+      "w",
+      "h",
+      "k"
+    ],
+    "timeToSolution": 0.09865593910217285
+  },
+  {
+    "tile_sizes": {
+      "tw": 10,
+      "th": 10,
+      "tc": 32,
+      "tk": 24
+    },
+    "loopOrder": [
+      "c",
+      "w",
+      "h",
+      "k"
+    ],
+    "timeToSolution": 0.08595681190490723
+  },
+  {
+    "tile_sizes": {
+      "tw": 5,
+      "th": 5,
+      "tc": 256,
+      "tk": 24
+    },
+    "loopOrder": [
+      "w",
+      "h",
+      "c",
+      "k"
+    ],
+    "timeToSolution": 0.018924951553344727
+  },
+  {
+    "tile_sizes": {
+      "tw": 3,
+      "th": 3,
+      "tc": 256,
+      "tk": 16
+    },
+    "loopOrder": [
+      "w",
+      "h",
+      "c",
+      "k"
+    ],
+    "timeToSolution": 0.019757986068725586
+  },
+  {
+    "tile_sizes": {
+      "tw": 1,
+      "th": 1,
+      "tc": 256,
+      "tk": 16
+    },
+    "loopOrder": [
+      "w",
+      "h",
+      "c",
+      "k"
+    ],
+    "timeToSolution": 0.02430415153503418
+  },
+  {
+    "tile_sizes": {
+      "tw": 38,
+      "th": 19,
+      "tc": 16,
+      "tk": 28
+    },
+    "loopOrder": [
+      "c",
+      "h",
+      "k",
+      "w"
+    ],
+    "timeToSolution": 3.2068471908569336
+  },
+  {
+    "tile_sizes": {
+      "tw": 19,
+      "th": 19,
+      "tc": 32,
+      "tk": 78
+    },
+    "loopOrder": [
+      "c",
+      "k",
+      "w",
+      "h"
+    ],
+    "timeToSolution": 0.42613720893859863
+  },
+  {
+    "tile_sizes": {
+      "tw": 10,
+      "th": 10,
+      "tc": 32,
+      "tk": 182
+    },
+    "loopOrder": [
+      "c",
+      "k",
+      "w",
+      "h"
+    ],
+    "timeToSolution": 0.3321809768676758
+  },
+  {
+    "tile_sizes": {
+      "tw": 5,
+      "th": 5,
+      "tc": 256,
+      "tk": 26
+    },
+    "loopOrder": [
+      "k",
+      "w",
+      "h",
+      "c"
+    ],
+    "timeToSolution": 0.028331995010375977
+  },
+  {
+    "tile_sizes": {
+      "tw": 3,
+      "th": 3,
+      "tc": 256,
+      "tk": 28
+    },
+    "loopOrder": [
+      "k",
+      "w",
+      "h",
+      "c"
+    ],
+    "timeToSolution": 0.02322697639465332
+  },
+  {
+    "tile_sizes": {
+      "tw": 1,
+      "th": 1,
+      "tc": 256,
+      "tk": 28
+    },
+    "loopOrder": [
+      "k",
+      "w",
+      "h",
+      "c"
+    ],
+    "timeToSolution": 0.01967000961303711
+  }
+]

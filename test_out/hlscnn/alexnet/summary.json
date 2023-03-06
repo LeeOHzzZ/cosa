@@ -1,0 +1,77 @@
+[
+  {
+    "tile_sizes": {
+      "tw": 11,
+      "th": 11,
+      "tc": 3,
+      "tk": 64
+    },
+    "loopOrder": [
+      "w",
+      "h",
+      "c",
+      "k"
+    ],
+    "timeToSolution": 0.021876096725463867
+  },
+  {
+    "tile_sizes": {
+      "tw": 27,
+      "th": 9,
+      "tc": 16,
+      "tk": 96
+    },
+    "loopOrder": [
+      "c",
+      "h",
+      "k",
+      "w"
+    ],
+    "timeToSolution": 0.881784200668335
+  },
+  {
+    "tile_sizes": {
+      "tw": 13,
+      "th": 13,
+      "tc": 32,
+      "tk": 192
+    },
+    "loopOrder": [
+      "c",
+      "k",
+      "w",
+      "h"
+    ],
+    "timeToSolution": 0.11090588569641113
+  },
+  {
+    "tile_sizes": {
+      "tw": 13,
+      "th": 13,
+      "tc": 48,
+      "tk": 128
+    },
+    "loopOrder": [
+      "c",
+      "k",
+      "w",
+      "h"
+    ],
+    "timeToSolution": 0.11205506324768066
+  },
+  {
+    "tile_sizes": {
+      "tw": 13,
+      "th": 13,
+      "tc": 32,
+      "tk": 128
+    },
+    "loopOrder": [
+      "c",
+      "k",
+      "w",
+      "h"
+    ],
+    "timeToSolution": 0.09525227546691895
+  }
+]
