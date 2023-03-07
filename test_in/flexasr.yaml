@@ -4,15 +4,20 @@ arch:
     meshX: 1
     word-bits: 8
   storage:
-  - name: PE_CORE_LARGE
-    # entries: 0x400000 # 4MB
-    entries: 0x40000 # 256kB
-    instances: 1
-    block-size: 16
-    word-bits: 8
-  - name: GB_CORE_LARGE
-    # entries: 0x100000 # 1MB
-    entries: 0x10000 # 64kB
+  # - name: PE_CORE_LARGE
+  #   # entries: 0x400000 # 4MB
+  #   entries: 0x40000 # 256kB
+  #   instances: 1
+  #   block-size: 16
+  #   word-bits: 8
+  # - name: GB_CORE_LARGE
+  #   # entries: 0x100000 # 1MB
+  #   entries: 0x10000 # 64kB
+  #   instances: 1
+  #   block-size: 16
+  #   word-bits: 8
+  - name: SRAM
+    entries: 0x50000 # PE CORE BUFFER + GB LARGE BUFFER
     instances: 1
     block-size: 16
     word-bits: 8

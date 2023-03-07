@@ -42,9 +42,9 @@ _B_HLSCNN = [
 ]
 
 _B_FLEXASR = [
-    [1, 0, 1, 1], # Weights
-    [0, 1, 1, 1], # Inputs
-    [0, 1, 1, 1], # Outputs
+    [1, 1, 1],  # Weights
+    [1, 1, 1],  # Inputs
+    [1, 1, 1],  # Outputs
 ]
 
 # for uneven mapping

@@ -24,8 +24,8 @@ try:
 except KeyError:
     _COSA_DIR = os.path.abspath(__file__ + "/../")
 
-hlscnn = True
-flexasr = False
+hlscnn = False
+flexasr = True
 is_3la = hlscnn or flexasr
 assert not(hlscnn and flexasr), "cannot set both hlscnn and flexasr to be True"
 
@@ -385,6 +385,12 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
             for j, f_j in enumerate(f):
                 for n, f_jn in enumerate(f_j):
                     m.addConstr(x[(i, j, n, 0)] == 0, f"disable_spatial_{i}_{j}_{n}")
+        # set the batch dimension to multiple of 16
+        t_batch_num = 0
+        for n, f_jn in enumerate(f[2]):
+            t_batch_num += x[(0,2,n,1)] * np.log2(f_jn)
+        tb_factor = m.addVar(lb=4, vtype=GRB.INTEGER, name=f"flexasr_t_batch_factor")
+        m.addConstr(t_batch_num == tb_factor, "t_batch num be integer")
 
     # get compute cost 
     inner_gb_cycles = 0
@@ -522,6 +528,42 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
         # print(variable, variable.varName, variable.x)
         result_dict[variable.varName] = variable.x
     logging.debug('Obj: %g' % m.objVal)
+    # logging.debug("result_dict", result_dict)
+    # print(result_dict)
+
+    # validate buf utilization
+    buf_util_res = {}
+    for v in range(num_vars):
+        for i in range(num_mems):
+            buf_util_res[(i, v)] = 0
+    for v in range(num_vars):
+        for i_ in range(gb_start_level + perm_levels):
+            for i in range(num_mems):
+                for j, f_j in enumerate(f):
+                    for n, f_jn in enumerate(f_j):
+                        factor = 1
+                        # stride[2, 3] contains larger input_w, input_h info
+                        # If there is no padding, the input image size is probably larger than the output size
+                        if v == 1 and j == 2:
+                            # factor = strides[0] + 0.1 if strides[2] else strides[0]
+                            factor = strides[2]
+                        if v == 1 and j == 3:
+                            factor = strides[3]
+
+                        if i_ > gb_start_level and i_ < gb_start_level + perm_levels:
+                            Z_const = Z[v][i][gb_start_level]
+                        else:
+                            Z_const = Z[v][i][i_]
+
+                        buf_util_res[(i, v)] += np.log2(factor * f[j][n]) * (result_dict[f"X({i_},{j},{n},0)"] + result_dict[f"X({i_},{j},{n},1)"]) * A[j][
+                            v] * Z_const  # use the i for the cur mem for relationship 
+    print(buf_util_res)
+    for v in range(num_vars):
+        # excluding DRAM
+        for i in range(num_mems - 1):
+            if M_log[i][v] > 0:
+                print(Z[v][i])
+                print(f"({i}, {v})::{buf_util_res[(i, v)]} <? {np.log2(M_log[i][v])}\n")
 
     all_x = np.zeros((total_levels, perm_levels, 2))
     for i in range(total_levels):
@@ -682,8 +724,7 @@ def run_timeloop(prob_path, arch_path, mapspace_path, output_path):
         ]
     if flexasr:
         part_ratios = [
-            [1, 0, 0],
-            [0, 0.5, 0.5],
+            [0.8, 0.1, 0.1],
             [0.33, 0.33, 0.33],
             [0.33, 0.33, 0.33],
         ]
@@ -692,7 +733,7 @@ def run_timeloop(prob_path, arch_path, mapspace_path, output_path):
     if hlscnn:
         global_buf_idx = 1
     elif flexasr:
-        global_buf_idx = 2
+        global_buf_idx = 1
 
     factor_config, spatial_config, outer_perm_config, run_time = cosa(prob, arch, _A, B, part_ratios, global_buf_idx=global_buf_idx,
                                                                       Z=Z)
@@ -741,6 +782,29 @@ def run_timeloop(prob_path, arch_path, mapspace_path, output_path):
         }
         logging.info(f"tile size dict: {tile_size_dict}")
         dim_order_dict = {"w": outer_perm_config[2], "h": outer_perm_config[3], "c": outer_perm_config[4], "k": outer_perm_config[5]}
+        loopOrder = [k for k, _ in sorted(dim_order_dict.items(), key = lambda x : x[1])]
+        logging.info(f"LoopOrder: {loopOrder}")
+
+        results = {
+            "tile_sizes" : tile_size_dict,
+            "loopOrder" : loopOrder,
+            "timeToSolution": run_time,
+        }
+
+        with open(output_path, "w") as fout:
+            json.dump(results, fout, indent=4)
+        
+        logging.info(f"result has been dumped to {output_path}")
+
+    elif flexasr:
+        fn = lambda f, level: f if level < 1 else 1
+        tile_size_dict = {
+            "tb" : reduce(mul, map(fn, prob.prob_factors[2], update_factor_config[2])),
+            "ty" : reduce(mul, map(fn, prob.prob_factors[3], update_factor_config[3])),
+            "tx" : reduce(mul, map(fn, prob.prob_factors[4], update_factor_config[4])),
+        }
+        logging.info(f"tile size dict: {tile_size_dict}")
+        dim_order_dict = {"t": outer_perm_config[2], "y": outer_perm_config[3], "x": outer_perm_config[4]}
         loopOrder = [k for k, _ in sorted(dim_order_dict.items(), key = lambda x : x[1])]
         logging.info(f"LoopOrder: {loopOrder}")
 

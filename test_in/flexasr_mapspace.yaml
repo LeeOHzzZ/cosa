@@ -1,19 +1,27 @@
 mapspace:
   constraints:
-  - target: PE_CORE_LARGE
+  # - target: PE_CORE_LARGE
+  #   type: datatype
+  #   keep:
+  #   - Weights
+  #   bypass:
+  #   - Inputs
+  #   - Outputs
+  # - target: GB_CORE_LARGE
+  #   type: datatype
+  #   keep:
+  #   - Inputs
+  #   - Outputs
+  #   bypass:
+  #   - Weights
+  - target: SRAM
     type: datatype
-    keep:
+    keep: 
     - Weights
-    bypass:
     - Inputs
     - Outputs
-  - target: GB_CORE_LARGE
-    type: datatype
-    keep:
-    - Inputs
-    - Outputs
     bypass:
-    - Weights
+    
   - target: GlobalBuffer(DRAM)
     type: datatype
     keep:
