@@ -24,10 +24,11 @@ try:
 except KeyError:
     _COSA_DIR = os.path.abspath(__file__ + "/../")
 
-hlscnn = False
-flexasr = True
-is_3la = hlscnn or flexasr
-assert not(hlscnn and flexasr), "cannot set both hlscnn and flexasr to be True"
+hlscnn = 1
+flexasr = 0
+vta = 0
+is_3la = hlscnn + flexasr + vta
+assert hlscnn + flexasr + vta <= 1, "cannot set both hlscnn and flexasr to be True"
 
 def construct_argparser():
     parser = argparse.ArgumentParser(description='Run Configuration')
@@ -103,15 +104,14 @@ def cosa(prob, arch, A, B, part_ratios, global_buf_idx, Z=None):
     strides = [prob.prob['Wstride'], prob.prob['Hstride'], factor_in_w, factor_in_h]
 
     new_A = _A
-    if flexasr:
+    if flexasr or vta:
         new_A = _A_FLEXASR
 
     new_B = _B 
     if hlscnn:
         new_B = _B_HLSCNN
-    elif flexasr:
+    elif flexasr or vta: # vta's B is exactly the same as flexasr's
         new_B = _B_FLEXASR
-
 
     if Z is None:
         Z = []
@@ -327,9 +327,11 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
                         # If there is no padding, the input image size is probably larger than the output size
                         if v == 1 and j == 2:
                             # factor = strides[0] + 0.1 if strides[2] else strides[0]
-                            factor = strides[2]
+                            # factor = strides[2]
+                            factor = strides[0]
                         if v == 1 and j == 3:
-                            factor = strides[3]
+                            factor = strides[1]
+                            # factor = strides[3]
 
                         if i_ > gb_start_level and i_ < gb_start_level + perm_levels:
                             Z_const = Z[v][i][gb_start_level]
@@ -391,6 +393,24 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
             t_batch_num += x[(0,2,n,1)] * np.log2(f_jn)
         tb_factor = m.addVar(lb=4, vtype=GRB.INTEGER, name=f"flexasr_t_batch_factor")
         m.addConstr(t_batch_num == tb_factor, "t_batch num be integer")
+    
+    if vta:
+        # disable spatial 
+        for i in range(total_levels):
+            for j, f_j in enumerate(f):
+                for n, f_jn in enumerate(f_j):
+                    m.addConstr(x[(i, j, n, 0)] == 0, f"disable_spatial_{i}_{j}_{n}")
+        # set the tx and ty to multiple of 16
+        t_x_num, t_y_num = 0, 0
+        for n, f_jn in enumerate(f[3]):
+            t_y_num += x[(0,3,n,1)] * np.log2(f_jn)
+        for n, f_jn in enumerate(f[4]):
+            t_x_num += x[(0,4,n,1)] * np.log2(f_jn)
+        tx_factor = m.addVar(lb=4, vtype=GRB.INTEGER, name="vta_tx_factor")
+        ty_factor = m.addVar(lb=4, vtype=GRB.INTEGER, name="vta_ty_factor")
+        m.addConstr(tx_factor == t_x_num, "tx be multiple of 16")
+        m.addConstr(ty_factor == t_y_num, "ty be multiple of 16")
+
 
     # get compute cost 
     inner_gb_cycles = 0
@@ -728,11 +748,15 @@ def run_timeloop(prob_path, arch_path, mapspace_path, output_path):
             [0.33, 0.33, 0.33],
             [0.33, 0.33, 0.33],
         ]
+    if vta:
+        part_ratios = [
+            [0.8, 0.1, 0.1],
+            [0.33, 0.33, 0.33],
+            [0.33, 0.33, 0.33],
+        ] 
 
     global_buf_idx = 4
-    if hlscnn:
-        global_buf_idx = 1
-    elif flexasr:
+    if is_3la:
         global_buf_idx = 1
 
     factor_config, spatial_config, outer_perm_config, run_time = cosa(prob, arch, _A, B, part_ratios, global_buf_idx=global_buf_idx,
@@ -796,7 +820,7 @@ def run_timeloop(prob_path, arch_path, mapspace_path, output_path):
         
         logging.info(f"result has been dumped to {output_path}")
 
-    elif flexasr:
+    elif flexasr or vta:
         fn = lambda f, level: f if level < 1 else 1
         tile_size_dict = {
             "tb" : reduce(mul, map(fn, prob.prob_factors[2], update_factor_config[2])),
