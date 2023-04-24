@@ -1,0 +1,17 @@
+mapspace:
+  constraints:
+  - target: SRAM
+    type: datatype
+    keep: 
+    - Weights
+    - Inputs
+    - Outputs
+    bypass:
+    
+  - target: GlobalBuffer(DRAM)
+    type: datatype
+    keep:
+    - Weights
+    - Inputs
+    - Outputs
+    bypass:

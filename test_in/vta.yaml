@@ -1,0 +1,37 @@
+arch:
+  arithmetic:
+    instances: 1
+    meshX: 1
+    word-bits: 8
+  storage:
+  # - name: VTA_INP_BUF_SIZE
+  #   entries: 32768 # 1 << 15
+  #   instances: 1
+  #   block-size: 8
+  #   word-bits: 8
+  # - name: VTA_WGT_BUF_SIZE
+  #   entries: 262144
+  #   instances: 1
+  #   block-size: 8
+  #   word-bits: 8
+  # - name: VTA_OUT_BUF_SIZE
+  #   entries: 32768 # (1 << 17) / 4 = 1 << 15
+  #   instances: 1
+  #   block-size: 8
+  #   word-bits: 8
+  - name: SRAM
+    entries: 0x50000 # VTA_INP_BUF_SIZE + VTA_WGT_BUF_SIZE + VTA_OUT_BUF_SIZE
+    instances: 1
+    block-size: 16
+    word-bits: 8
+  - name: GlobalBuffer(DRAM)
+    entries: 0x1FFFFFFFFFFFFFFF
+    instances: 1
+    block-size: 16
+    word-bits: 8
+  - name: DRAM
+    technology: "DRAM"
+    instances: 1
+    word-bits: 8
+    block-size: 8
+    bandwidth: 20.0
