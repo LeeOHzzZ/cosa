@@ -1,0 +1,22 @@
+arch:
+  arithmetic:
+    instances: 1
+    meshX: 1
+    word-bits: 16
+  storage:
+  - name: SPAD
+    entries: 0x10000
+    instances: 1
+    block-size: 8
+    word-bits: 16
+  - name: GlobalBuffer(Real DRAM)
+    entries: 0x1FFFFFFFFFFFFFFF
+    instances: 1
+    block-size: 8
+    word-bits: 16
+  - name: DRAM
+    technology: "DRAM"
+    instances: 1
+    word-bits: 16
+    block-size: 8
+    bandwidth: 20.0
