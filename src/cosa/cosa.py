@@ -24,11 +24,19 @@ try:
 except KeyError:
     _COSA_DIR = os.path.abspath(__file__ + "/../")
 
-hlscnn = 1
-flexasr = 0
-vta = 0
-is_3la = hlscnn + flexasr + vta
-assert hlscnn + flexasr + vta <= 1, "cannot set both hlscnn and flexasr to be True"
+hw_3la_on = {
+    'hlscnn': False,
+    'flexasr': False,
+    'vta': False,
+    'hlscnn-singlespad': False,
+    "is_3la": False,
+}
+# hlscnn = 0
+# flexasr = 0
+# vta = 0
+# hlscnn_singlespad = 0
+# is_3la = hlscnn + flexasr + vta + hlscnn_singlespad
+# assert is_3la <= 1, "cannot set both hlscnn and flexasr to be True"
 
 def construct_argparser():
     parser = argparse.ArgumentParser(description='Run Configuration')
@@ -56,6 +64,12 @@ def construct_argparser():
                         help='Problem Dimension Path',
                         default=f'{_COSA_DIR}/configs/workloads/resnet50_graph/_outputs_input.2.yaml',
                         )
+    parser.add_argument('-hw_3la',
+                        type=str,
+                        help="3LA hardware accelerator target",
+                        choices=['hlscnn', 'flexasr', 'vta', 'hlscnn-singlespad'],
+                        )
+                        
     return parser
 
 
@@ -104,13 +118,13 @@ def cosa(prob, arch, A, B, part_ratios, global_buf_idx, Z=None):
     strides = [prob.prob['Wstride'], prob.prob['Hstride'], factor_in_w, factor_in_h]
 
     new_A = _A
-    if flexasr or vta:
+    if hw_3la_on["flexasr"] or hw_3la_on["vta"]:
         new_A = _A_FLEXASR
 
     new_B = _B 
-    if hlscnn:
+    if hw_3la_on["hlscnn"] or hw_3la_on["hlscnn-singlespad"]:
         new_B = _B_HLSCNN
-    elif flexasr or vta: # vta's B is exactly the same as flexasr's
+    elif hw_3la_on["flexasr"] or hw_3la_on["vta"]: # vta's B is exactly the same as flexasr's
         new_B = _B_FLEXASR
 
     if Z is None:
@@ -258,7 +272,7 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
 
     # ========= No idea what this is about ============= #
     ## exhausively list all scenarios where p or q is inside current mem
-    if not is_3la:
+    if not hw_3la_on["is_3la"]:
         InputBufferLevel = 3
         zz = {}
         prefix = 0
@@ -286,7 +300,7 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
                     row_sum += np.log2(f[j][n]) * (x[(i, j, n, 1)])
             l[(v, i)] = row_sum
     
-    if not is_3la:
+    if not hw_3la_on["is_3la"]:
         # Add spatial constraints
         spatial_tile = 0
         for i in range(gb_start_level, gb_start_level + perm_levels):
@@ -340,7 +354,7 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
                         buf_util[(i, v)] += np.log2(factor * f[j][n]) * (x[(i_, j, n, 0)] + x[i_, j, n, 1]) * A[j][
                             v] * Z_const  # use the i for the cur mem for relationship 
                         # only add once
-                        if not is_3la:
+                        if not hw_3la_on["is_3la"]:
                             if i == 3 and j in [0, 1] and v == 1:
                                 buf_util[(i, v)] += (x[(i_, j, n, 0)] + x[(i_, j, n, 1)]) * (1 - zz[(j + 2, i)]) * np.log2(
                                     f[j][n])
@@ -353,7 +367,7 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
                 m.addConstr(buf_util[(i, v)] <= np.log2(M_log[i][v]), f"buffer_size_{i}_{v}")
 
 
-    if hlscnn:
+    if hw_3la_on["hlscnn"] or hw_3la_on["hlscnn-singlespad"]:
         # disable spatial 
         for i in range(total_levels):
             for j, f_j in enumerate(f):
@@ -381,7 +395,7 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
         # m.addConstr(out_chan_size >= 3, "hlscnn_out_chan")
         m.addConstr(out_chan_size <= 8, "hlscnn_max_out_chan")
 
-    if flexasr:
+    if hw_3la_on["flexasr"]:
         # disable spatial 
         for i in range(total_levels):
             for j, f_j in enumerate(f):
@@ -394,7 +408,7 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
         tb_factor = m.addVar(lb=4, vtype=GRB.INTEGER, name=f"flexasr_t_batch_factor")
         m.addConstr(t_batch_num == tb_factor, "t_batch num be integer")
     
-    if vta:
+    if hw_3la_on["vta"]:
         # disable spatial 
         for i in range(total_levels):
             for j, f_j in enumerate(f):
@@ -450,7 +464,7 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
             for j, f_j in enumerate(f):
                 for n, f_jn in enumerate(f_j):
                     # TRICK prioritize spatial
-                    factors = 0.8 + 0.04 * i if not is_3la else 1
+                    factors = 0.8 + 0.04 * i if not hw_3la_on["is_3la"] else 1
                     size += factors * np.log2(f[j][n]) * (x[(i, j, n, 0)] + x[i, j, n, 1]) * A[j][v]
         data_size[v] = size
 
@@ -590,7 +604,7 @@ def mip_solver(f, strides, arch, part_ratios, global_buf_idx, A, Z, compute_fact
         level_idx = 0
         for j, f_j in enumerate(f):
             for n, f_jn in enumerate(f_j):
-                if hlscnn:
+                if hw_3la_on["hlscnn"] or hw_3la_on["hlscnn-singlespad"]:
                     assert result_dict[f"X({i},{j},{n},0)"] == 0
                 for k in range(2):
                     name = "X({},{},{},{})".format(i, j, n, k)
@@ -719,7 +733,7 @@ def run_timeloop(prob_path, arch_path, mapspace_path, output_path):
     mapspace.init(prob, arch)
 
     # even mapping
-    B = _B if not hlscnn else _B_HLSCNN
+    B = _B if not hw_3la_on["hlscnn"] else _B_HLSCNN
     Z = None
 
     # uneven mapping config
@@ -736,19 +750,25 @@ def run_timeloop(prob_path, arch_path, mapspace_path, output_path):
         [0.33, 0.33, 0.33],
     ]
 
-    if hlscnn:
+    if hw_3la_on["hlscnn"]:
         part_ratios = [
             [0.5, 0.25, 0.25],
             [0.33, 0.33, 0.33],
             [0.33, 0.33, 0.33],
         ]
-    if flexasr:
+    if hw_3la_on["hlscnn-singlespad"]:
+        part_ratios = [
+            [0.33, 0.33, 0.33],
+            [0.33, 0.33, 0.33],
+            [0.33, 0.33, 0.33],
+        ]
+    if hw_3la_on["flexasr"]:
         part_ratios = [
             [0.8, 0.1, 0.1],
             [0.33, 0.33, 0.33],
             [0.33, 0.33, 0.33],
         ]
-    if vta:
+    if hw_3la_on["vta"]:
         part_ratios = [
             [0.8, 0.1, 0.1],
             [0.33, 0.33, 0.33],
@@ -756,7 +776,7 @@ def run_timeloop(prob_path, arch_path, mapspace_path, output_path):
         ] 
 
     global_buf_idx = 4
-    if is_3la:
+    if hw_3la_on["is_3la"]:
         global_buf_idx = 1
 
     factor_config, spatial_config, outer_perm_config, run_time = cosa(prob, arch, _A, B, part_ratios, global_buf_idx=global_buf_idx,
@@ -783,7 +803,7 @@ def run_timeloop(prob_path, arch_path, mapspace_path, output_path):
     logging.info(f"default perm_config: {perm_config}")
     logging.info(f"outer_per_config: {outer_perm_config}")
 
-    if hlscnn:
+    if hw_3la_on["hlscnn"] or hw_3la_on["hlscnn-singlespad"]:
         assert all(
             [True if i == 0 or all([j == 1 for j in prob.prob_factors[0]]) 
              else False for i in update_factor_config[0]]
@@ -820,7 +840,7 @@ def run_timeloop(prob_path, arch_path, mapspace_path, output_path):
         
         logging.info(f"result has been dumped to {output_path}")
 
-    elif flexasr or vta:
+    elif hw_3la_on["flexasr"] or hw_3la_on["vta"]:
         fn = lambda f, level: f if level < 1 else 1
         tile_size_dict = {
             "tb" : reduce(mul, map(fn, prob.prob_factors[2], update_factor_config[2])),
@@ -845,7 +865,7 @@ def run_timeloop(prob_path, arch_path, mapspace_path, output_path):
         
 
 
-    if not is_3la:
+    if not hw_3la_on["is_3la"]:
         perm_config[4] = outer_perm_config
 
         status_dict = {}
@@ -863,6 +883,12 @@ def run_timeloop(prob_path, arch_path, mapspace_path, output_path):
 def run_cosa():
     parser = construct_argparser()
     args = parser.parse_args()
+    hw_3la = args.hw_3la
+
+    if hw_3la:
+        hw_3la_on["is_3la"] = True
+        hw_3la_on[hw_3la] = True
+
 
     prob_path = pathlib.Path(args.prob_path).resolve()
     arch_path = pathlib.Path(args.arch_path).resolve()
